@@ -1,5 +1,6 @@
 import six
 
+from .ast import Node
 from . import util
 from . import tree
 from .tokenizer import (
@@ -57,7 +58,15 @@ def parse_debug(method):
         return _method
 
     else:
-        return method
+        def _method(self):
+            start_pos = self.tokens.look().position
+            ret_obj = method(self)
+            end_pos = self.tokens.look().position
+            if isinstance(ret_obj, Node):
+                ret_obj._position = (start_pos, end_pos)
+            return ret_obj
+        
+        return _method
 
 # ------------------------------------------------------------------------------
 # ---- Parsing exception ----
