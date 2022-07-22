@@ -62,6 +62,8 @@ def parse_debug(method):
             start_pos = self.tokens.look().position
             ret_obj = method(self)
             end_pos = self.tokens.look().position
+            if end_pos is None:
+                end_pos = self.tokens.list[-1].position
             if isinstance(ret_obj, Node):
                 ret_obj._position = (start_pos, end_pos)
             return ret_obj
