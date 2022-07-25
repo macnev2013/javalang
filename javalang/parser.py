@@ -1682,7 +1682,9 @@ class Parser(object):
         start_pos = self.tokens.look().position
         modifiers, annotations = self.parse_variable_modifiers()
         var_type = self.parse_type()
+        isp = self.tokens.look().position
         var_name = self.parse_identifier()
+        iep = self.tokens.look().position
         var_type.dimensions += self.parse_array_dimension()
         end_pos = self.tokens.look().position
 
@@ -1695,7 +1697,7 @@ class Parser(object):
 
         if isinstance(rest, tree.Expression):
             var.declarators = [tree.VariableDeclarator(name=var_name)]
-            var.declarators[0]._position = var_name._position
+            var.declarators[0]._position = (isp, iep)
             return tree.EnhancedForControl(var=var,
                                            iterable=rest)
         else:
