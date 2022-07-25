@@ -1221,12 +1221,16 @@ class Parser(object):
 
     @parse_debug
     def parse_variable_declarator(self):
+        isp = self.tokens.look().position
         identifier = self.parse_identifier()
         array_dimension, initializer = self.parse_variable_declarator_rest()
+        iep = self.tokens.look().position
 
-        return tree.VariableDeclarator(name=identifier,
+        declarator = tree.VariableDeclarator(name=identifier,
                                        dimensions=array_dimension,
                                        initializer=initializer)
+        declarator._position = (isp, iep)
+        return declarator
 
     @parse_debug
     def parse_variable_declarator_rest(self):
