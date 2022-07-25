@@ -1736,11 +1736,13 @@ class Parser(object):
     def parse_for_variable_declarator_rest(self):
         initializer = None
 
+        isp = self.tokens.look().position
         if self.try_accept('='):
             initializer = self.parse_variable_initializer()
+        iep = self.tokens.look().position
 
         declarators = [tree.VariableDeclarator(initializer=initializer)]
-        declarators[0]._position = initializer._position
+        declarators[0]._position = (isp, iep)
 
         while self.try_accept(','):
             declarator = self.parse_variable_declarator()
