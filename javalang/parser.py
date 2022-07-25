@@ -1069,12 +1069,16 @@ class Parser(object):
 
     @parse_debug
     def parse_constant_declarator(self):
+        isp = self.tokens.look().position
         name = self.parse_identifier()
         additional_dimension, initializer = self.parse_constant_declarator_rest()
+        iep = self.tokens.look().position
 
-        return tree.VariableDeclarator(name=name,
+        declarator = tree.VariableDeclarator(name=name,
                                        dimensions=additional_dimension,
                                        initializer=initializer)
+        declarator._position = (isp, iep)
+        return declarator
 
     @parse_debug
     def parse_interface_method_declarator_rest(self):
@@ -1723,6 +1727,8 @@ class Parser(object):
             declarators = self.parse_for_variable_declarator_rest()
         else:
             declarators = [tree.VariableDeclarator()]
+            pos = self.tokens.look().position
+            declarators[0]._position = (pos, pos)
         self.accept(';')
 
         condition = None
