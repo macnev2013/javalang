@@ -8,7 +8,7 @@ from .tokenizer import (
     Annotation, Literal, Operator, JavaToken,
     )
 
-ENABLE_DEBUG_SUPPORT = False
+ENABLE_DEBUG_SUPPORT = True
 
 def parse_debug(method):
     global ENABLE_DEBUG_SUPPORT
@@ -1643,6 +1643,8 @@ class Parser(object):
                 labels.append(case_value)
             elif not case_type == 'default':
                 self.illegal("Expected switch case")
+            elif case_type == 'default':
+                labels.append(None)
 
             self.accept(':')
 
@@ -1870,13 +1872,18 @@ class Parser(object):
                     self.accept(')')
                     expression = self.parse_expression_3()
 
-                    return tree.Cast(type=cast_target,
+                    cast = tree.Cast(type=cast_target,
                                      expression=expression)
+                    cast.prefix_operators = prefix_operators
+                    return cast
             except JavaSyntaxError:
                 pass
 
         primary = self.parse_primary()
-        primary.prefix_operators = prefix_operators
+        if hasattr(primary, 'prefix_operators') and type(primary.prefix_operators) is list:
+            primary.prefix_operators += prefix_operators
+        else:
+            primary.prefix_operators = prefix_operators
         if getattr(primary, "selectors", None) is None:
             primary.selectors = list()
         primary.postfix_operators = list()
