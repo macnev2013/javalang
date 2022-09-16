@@ -8,7 +8,7 @@ from .tokenizer import (
     Annotation, Literal, Operator, JavaToken,
     )
 
-ENABLE_DEBUG_SUPPORT = False
+ENABLE_DEBUG_SUPPORT = True
 
 def parse_debug(method):
     global ENABLE_DEBUG_SUPPORT
@@ -788,10 +788,16 @@ class Parser(object):
 
         elif self.would_accept('static', '{'):
             self.accept('static')
-            return self.parse_block()
+            block = self.parse_block()
+            parse_block = tree.BlockStatement(statements=block)
+            parse_block.static = True
+            return parse_block
 
         elif self.would_accept('{'):
-            return self.parse_block()
+            block = self.parse_block()
+            parse_block = tree.BlockStatement(statements=block)
+            parse_block.static = False
+            return parse_block
 
         else:
             return self.parse_member_declaration()
@@ -1562,8 +1568,11 @@ class Parser(object):
     def parse_catch_clause(self):
         self.accept('catch', '(')
 
+        start_pos = self.tokens.look().position
         modifiers, annotations = self.parse_variable_modifiers()
-        catch_parameter = tree.CatchClauseParameter(types=list())
+        catch_parameter = tree.CatchClauseParameter(types=list(),
+                                                    modifiers=modifiers,
+                                                    annotations=annotations)
 
         while True:
             catch_type = self.parse_qualified_identifier()
@@ -1572,6 +1581,8 @@ class Parser(object):
             if not self.try_accept('|'):
                 break
         catch_parameter.name = self.parse_identifier()
+        end_pos = self.tokens.look().position
+        catch_parameter._position = start_pos, end_pos
 
         self.accept(')')
         block = self.parse_block()
@@ -2007,14 +2018,19 @@ class Parser(object):
                 qualified_identifier.append(identifier)
 
             identifier_suffix = self.parse_identifier_suffix()
+            if (len(qualified_identifier) == 1 and
+                isinstance(identifier_suffix, tree.MethodInvocation) and
+                identifier_suffix.member is not None): # provisional handling for generic methods (by smkang)
+                # if generic method, do not reassign member/type information
+                assert identifier_suffix.qualifier is None, 'unimplemented syntax'
+            else:
+                # usual behavior
+                if isinstance(identifier_suffix, (tree.MemberReference, tree.MethodInvocation)):
+                    # Take the last identifer as the member and leave the rest for the qualifier
+                    identifier_suffix.member = qualified_identifier.pop()
 
-            if isinstance(identifier_suffix, (tree.MemberReference, tree.MethodInvocation)):
-                # Take the last identifer as the member and leave the rest for the qualifier
-                identifier_suffix.member = qualified_identifier.pop()
-
-            elif isinstance(identifier_suffix, tree.ClassReference):
-                identifier_suffix.type = tree.ReferenceType(name=qualified_identifier.pop())
-
+                elif isinstance(identifier_suffix, tree.ClassReference):
+                    identifier_suffix.type = tree.ReferenceType(name=qualified_identifier.pop())
             identifier_suffix.qualifier = '.'.join(qualified_identifier)
 
             return identifier_suffix

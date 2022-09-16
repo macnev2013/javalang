@@ -4,6 +4,8 @@ from .ast import Node
 from . import util
 from . import tree
 
+INDENT_SIZE = 4
+
 def _get_prefix_str(prefix_operators):
     if prefix_operators is None:
         return ''
@@ -20,10 +22,61 @@ def _get_selector_str(selectors):
     if selectors is None or len(selectors) == 0:
         return ""
     else:
-        return "." + ".".join(unparse(e) for e in selectors)
+        base_str = ""
+        for e in selectors:
+            if isinstance(e, tree.ArraySelector):
+                base_str += unparse(e)
+            else:
+                base_str += '.' + unparse(e)
+        return base_str
 
-def unparse(node, indent=0, indent_size=4):
-    indent_str = ' ' * indent_size * indent
+def _get_modifier_str(modifiers, trailing_space=False):
+    if modifiers is None:
+        return ''
+    else:
+        return ' '.join(modifiers) + (' ' if trailing_space and len(modifiers) > 0 else '')
+
+def _get_type_arguments_str(type_arguments, leading_space=False):
+    if type_arguments is None or len(type_arguments) == 0:
+        return ''
+    else:
+        leading_str = ' ' if leading_space else ''
+        return leading_str + '<' + ', '.join(unparse(e) for e in type_arguments) + '>'
+
+def _get_annotation_str(annotations, indent_str):
+    if annotations is None or len(annotations) == 0:
+        return ''
+    else:
+        return indent_str + ' '.join(unparse(e) for e in annotations) + '\n'
+
+def _get_label_str(label, indent_str):
+    if label is None:
+        return ''
+    else:
+        return indent_str + label + ':\n'
+
+def _get_body_str(elements, indent):
+    indent_str = ' ' * INDENT_SIZE * indent
+    if elements is None:
+        return ""
+    elif isinstance(elements, tree.Node):
+        assert isinstance(elements, tree.EnumBody)
+        body_statements = unparse(elements, indent=indent+1)
+        return " {\n" + body_statements + "\n" + indent_str + "}"
+    elif isinstance(elements, list):
+        body_statements = "\n".join(unparse(e, indent=indent+1) for e in elements)
+        return " {\n" + body_statements + "\n" + indent_str + "}"
+    else:
+        raise ValueError(f"Invalid body type {type(e)}")
+
+def _get_qualifier_str(qualifier):
+    if qualifier is None or len(qualifier) == 0:
+        return ''
+    else:
+        return qualifier + '.'
+
+def unparse(node, indent=0):
+    indent_str = ' ' * INDENT_SIZE * indent
     if isinstance(node, tree.CompilationUnit):
         package_str = indent_str + "package %s;" % node.package.name if node.package else ""
         imports_str = "\n".join(indent_str + unparse(imp, indent=indent) for imp in node.imports)
@@ -42,29 +95,35 @@ def unparse(node, indent=0, indent_size=4):
     elif isinstance(node, tree.PackageDeclaration):
         return indent_str + "package %s;" % node.name
     elif isinstance(node, tree.ClassDeclaration):
-        annotations = indent_str + " ".join(unparse(a) for a in node.annotations)
-        modifiers = indent_str + " ".join(sorted(node.modifiers))
+        annotation_str = _get_annotation_str(node.annotations, indent_str)
+        modifier_str = indent_str + _get_modifier_str(node.modifiers)
         name = node.name
+        typep_str = _get_type_arguments_str(node.type_parameters)
         extends = " extends " + unparse(node.extends) if node.extends else ""
         implements = " implements " + ", ".join(map(unparse, node.implements)) if node.implements else ""
-        body = [unparse(m, indent=indent+1) for m in node.body]
-        return "%s\n%s class %s%s%s {\n" % (annotations, modifiers, name, extends, implements) + \
-            "\n".join(body) + "\n" + indent_str + "}"
+        body_str = _get_body_str(node.body, indent)
+        return "%s%s class %s%s%s%s" % (annotation_str, modifier_str, name, typep_str, extends, implements) + body_str
     elif isinstance(node, tree.EnumDeclaration):
-        annotations = indent_str + " ".join(unparse(a) for a in node.annotations)
-        modifiers = indent_str + " ".join(sorted(node.modifiers))
+        annotation_str = _get_annotation_str(node.annotations, indent_str)
+        modifier_str = indent_str + _get_modifier_str(node.modifiers)
         name = node.name
         implements = " implements " + ", ".join(map(unparse, node.implements)) if node.implements else ""
-        body = unparse(node.body, indent=indent+1)
-        return "%s\n%s enum %s%s {\n%s\n%s}" % (annotations, modifiers, name, implements, body, indent_str)
+        body_str = _get_body_str(node.body, indent)
+        return "%s%s enum %s%s%s" % (annotation_str, modifier_str, name, implements, body_str)
     elif isinstance(node, tree.InterfaceDeclaration):
-        annotations = indent_str + " ".join(unparse(a) for a in node.annotations)
-        modifiers = indent_str + " ".join(sorted(node.modifiers))
+        annotation_str = _get_annotation_str(node.annotations, indent_str)
+        modifier_str = indent_str + _get_modifier_str(node.modifiers)
         name = node.name
+        typep_str = _get_type_arguments_str(node.type_parameters)
         extends = " extends " + ", ".join(map(unparse, node.extends)) if node.extends else ""
-        body = [unparse(m, indent=indent+1) for m in node.body]
-        return "%s\n%s interface %s%s {\n" % (annotations, modifiers, name, extends) + \
-            "\n".join(body) + "\n" + indent_str + "}"
+        body_str = _get_body_str(node.body, indent)
+        return "%s%s interface %s%s%s" % (annotation_str, modifier_str, name, typep_str, extends) + body_str
+    elif isinstance(node, tree.AnnotationDeclaration):
+        annotation_str = _get_annotation_str(node.annotations, indent_str)
+        modifier_str = indent_str + _get_modifier_str(node.modifiers)
+        name = node.name
+        body_str = _get_body_str(node.body, indent)
+        return "%s%s @interface %s" % (annotation_str, modifier_str, name) + body_str
 
     elif isinstance(node, tree.BasicType):
         if node.dimensions is not None:
@@ -76,11 +135,31 @@ def unparse(node, indent=0, indent_size=4):
             subtype_str = '.' + unparse(node.sub_type)
         else:
             subtype_str = ''
-        name_str = node.name + subtype_str
+        if node.arguments is not None:
+            args_str = '<' + ', '.join(unparse(a) for a in node.arguments) + '>'
+        else:
+            args_str = ''
+        name_str = node.name + args_str + subtype_str
         if node.dimensions is None:
             return name_str
         else:
             return name_str + "".join("[]" for _ in range(len(node.dimensions)))
+    elif isinstance(node, tree.TypeArgument):
+        if node.pattern_type is None:
+            return unparse(node.type)
+        elif node.pattern_type == '?':
+            assert node.type is None, 'what does this look like?'
+            return '?'
+        elif node.pattern_type == 'extends':
+            return '? extends ' + unparse(node.type)
+        elif node.pattern_type == 'super':
+            return '? super ' + unparse(node.type)
+        else:
+            raise ValueError('Unknown pattern type: %s' % node.pattern_type)
+    
+    elif isinstance(node, tree.TypeParameter):
+        extends_str = (" extends " + " & ".join(unparse(e) for e in node.extends)) if node.extends else ""
+        return node.name + extends_str
 
     elif isinstance(node, tree.Annotation):
         if isinstance(node.element, list):
@@ -91,55 +170,53 @@ def unparse(node, indent=0, indent_size=4):
             return "@%s" % node.name
     elif isinstance(node, tree.ElementValuePair):
         return "%s = %s" % (node.name, unparse(node.value))
+    elif isinstance(node, tree.ElementArrayValue):
+        return "{%s}" % ", ".join(unparse(v) for v in node.values)
 
     elif isinstance(node, tree.MethodDeclaration):
-        if node.annotations is not None:
-            annotations = indent_str + " ".join(unparse(a) for a in node.annotations)
-        else:
-            annotations = ""
-        modifiers = indent_str + " ".join(sorted(node.modifiers))
+        annotation_str = _get_annotation_str(node.annotations, indent_str)
+        modifier_str = indent_str + _get_modifier_str(node.modifiers)
+        typep_str = _get_type_arguments_str(node.type_parameters, leading_space=True)
         return_type = unparse(node.return_type) if node.return_type is not None else "void"
         method_name = node.name
         params = ", ".join(unparse(p) for p in node.parameters)
         throws = " throws " + ", ".join(t for t in node.throws) if node.throws is not None else ""
-        if node.body is not None:
-            body = "\n".join(unparse(s, indent=indent+1) for s in node.body)
-        else:
-            body = ";"
-        body = "{\n%s\n%s}" % (body, indent_str) if body != ";" else ";"
-        return "%s\n%s %s %s(%s)%s %s" % (annotations, modifiers, return_type, method_name, params, throws, body)
+        body_str = _get_body_str(node.body, indent)
+        body_str = body_str if body_str != "" else " { ; }"
+        return "%s%s%s %s %s(%s)%s%s" % (annotation_str, modifier_str, typep_str, return_type, method_name, params, throws, body_str)
     elif isinstance(node, tree.FieldDeclaration):
-        modifiers = indent_str + " ".join(sorted(node.modifiers))
-        all_dec_str = modifiers + " " + unparse(node.type) + " "
+        annotation_str = _get_annotation_str(node.annotations, indent_str)
+        modifier_str = annotation_str + indent_str + _get_modifier_str(node.modifiers)
+        all_dec_str = modifier_str + " " + unparse(node.type) + " "
         for var in node.declarators:
             dec_str = unparse(var)
             all_dec_str += dec_str + ', '
         all_dec_str = all_dec_str[:-2] + ';'
         return all_dec_str
     elif isinstance(node, tree.ConstructorDeclaration):
-        annotations = indent_str + " ".join(unparse(a) for a in node.annotations)
-        modifiers = indent_str + " ".join(sorted(node.modifiers))
+        annotation_str = _get_annotation_str(node.annotations, indent_str)
+        modifier_str = indent_str + _get_modifier_str(node.modifiers)
+        typep_str = _get_type_arguments_str(node.type_parameters, leading_space=True)
         name = node.name
         params = ", ".join(unparse(p) for p in node.parameters)
         throws = " throws " + ", ".join(t for t in node.throws) if node.throws is not None else ""
-        body = "\n".join(unparse(s, indent=indent+1) for s in node.body)
-        return "%s\n%s %s(%s)%s {\n%s\n%s}" % (annotations, modifiers, name, params, throws, body, indent_str)
+        body_str = _get_body_str(node.body, indent)
+        return "%s%s%s %s(%s)%s%s" % (annotation_str, modifier_str, typep_str, name, params, throws, body_str)
 
     elif isinstance(node, tree.ArrayInitializer):
         return "{%s}" % ", ".join(unparse(e) for e in node.initializers)
     elif isinstance(node, tree.VariableDeclaration) and not isinstance(node, tree.LocalVariableDeclaration):
-        all_dec_str = indent_str + unparse(node.type) + " " 
+        modifier_str = _get_modifier_str(node.modifiers, trailing_space=True)
+        all_dec_str = indent_str + modifier_str + unparse(node.type) + " " 
         for var in node.declarators:
             dec_str = unparse(var)
             all_dec_str += dec_str + ', '
         all_dec_str = all_dec_str[:-2] + ';'
         return all_dec_str
     elif isinstance(node, tree.LocalVariableDeclaration):
-        if node.modifiers is not None and len(node.modifiers) > 0:
-            modifier_str = " ".join(sorted(node.modifiers)) + " "
-        else:
-            modifier_str = ""
-        all_dec_str = indent_str + modifier_str + unparse(node.type) + " " 
+        annotation_str = _get_annotation_str(node.annotations, indent_str)
+        modifier_str = _get_modifier_str(node.modifiers, trailing_space=True)
+        all_dec_str = annotation_str + indent_str + modifier_str + unparse(node.type) + " " 
         for var in node.declarators:
             dec_str = unparse(var)
             all_dec_str += dec_str + ', '
@@ -151,17 +228,21 @@ def unparse(node, indent=0, indent_size=4):
         else:
             return node.name
     elif isinstance(node, tree.FormalParameter):
-        modifier_str = " ".join(sorted(node.modifiers)) + " " if node.modifiers else ""
-        return modifier_str + unparse(node.type) + " " + node.name
+        annotation_str = _get_annotation_str(node.annotations, indent_str).strip()
+        annotation_str += " " if annotation_str != "" else ""
+        modifier_str = _get_modifier_str(node.modifiers, trailing_space=True)
+        vararg_str = " ... " if node.varargs else " "
+        return annotation_str + modifier_str + unparse(node.type) + vararg_str + node.name
 
     elif isinstance(node, tree.IfStatement):
-        condition = unparse(node.condition)
+        label_str = _get_label_str(node.label, indent_str)
+        preamble = label_str + indent_str + "if (%s) " % unparse(node.condition)
         then_statement = unparse(node.then_statement, indent=indent)
         else_statement = unparse(node.else_statement, indent=indent) if node.else_statement is not None else ""
         if len(else_statement) > 0:
-            return "%sif (%s) %s else %s" % (indent_str, condition, then_statement, else_statement)
+            return "%s %s else %s" % (preamble, then_statement, else_statement)
         else:
-            return "%sif (%s) %s" % (indent_str, condition, then_statement)
+            return "%s %s" % (preamble, then_statement)
     elif isinstance(node, tree.WhileStatement):
         condition = unparse(node.condition)
         statement = unparse(node.body, indent=indent)
@@ -171,48 +252,56 @@ def unparse(node, indent=0, indent_size=4):
         statement = unparse(node.body, indent=indent)
         return "%sdo %s while (%s);" % (indent_str, statement, condition)
     elif isinstance(node, tree.ForStatement):
+        label_str = _get_label_str(node.label, indent_str)
+        preamble = label_str + indent_str
         forcontrol = unparse(node.control)
         statement = unparse(node.body, indent=indent)
-        return "%sfor (%s) %s" % (indent_str, forcontrol, statement)
+        return "%sfor (%s) %s" % (preamble, forcontrol, statement)
     elif isinstance(node, tree.AssertStatement):
         return indent_str + "assert(%s);" % unparse(node.condition)
     elif isinstance(node, tree.BreakStatement):
-        return indent_str + "break;" # ignoring gotos for now
+        goto_str = " %s" % node.goto if node.goto is not None else ""
+        return indent_str + "break%s;" % goto_str
     elif isinstance(node, tree.ContinueStatement):
-        return indent_str + "continue;"
+        goto_str = " %s" % node.goto if node.goto is not None else ""
+        return indent_str + "continue%s;" % goto_str
     elif isinstance(node, tree.ReturnStatement):
         return indent_str + "return %s;" % unparse(node.expression) if node.expression is not None else "return;"
     elif isinstance(node, tree.ThrowStatement):
         return indent_str + "throw %s;" % unparse(node.expression)
     elif isinstance(node, tree.SynchronizedStatement):
-        block_content = '{\n' + '\n'.join(unparse(s, indent=indent+1) for s in node.block) + '\n' + indent_str + '}'
-        return indent_str + "synchronized (%s) %s" % (unparse(node.lock), block_content)
+        body_str = _get_body_str(node.block, indent)
+        return indent_str + "synchronized (%s) %s" % (unparse(node.lock), body_str)
     elif isinstance(node, tree.TryStatement):
-        block_stmts = [unparse(stmt, indent=indent+1) for stmt in node.block]
+        block_str = _get_body_str(node.block, indent)
         if node.catches is not None:
             catch_clauses = [unparse(catch, indent=indent) for catch in node.catches]
         else:
             catch_clauses = []
         if node.finally_block is None:
-            return "%stry {\n%s\n} %s" % (indent_str, "\n".join(block_stmts), " ".join(catch_clauses))
+            return "%stry%s %s" % (indent_str, block_str, " ".join(catch_clauses))
         else:
-            finally_stmts = [unparse(stmt, indent=indent+1) for stmt in node.finally_block]
-            return "%stry {\n%s\n} %s finally {%s}" % (indent_str, "\n".join(block_stmts), " ".join(catch_clauses), "\n".join(finally_stmts))
+            finally_block_str = _get_body_str(node.finally_block, indent)
+            return "%stry%s %s finally {%s}" % (indent_str, block_str, " ".join(catch_clauses), finally_block_str)
     elif isinstance(node, tree.SwitchStatement):
         expression_str = unparse(node.expression)
-        switch_block_str = '\n'.join(unparse(stmt, indent=indent+1) for stmt in node.cases)
-        return "%sswitch (%s) {\n%s\n%s}" % (indent_str, expression_str, switch_block_str, indent_str)
+        block_str = _get_body_str(node.cases, indent)
+        return "%sswitch (%s)%s" % (indent_str, expression_str, block_str)
     elif isinstance(node, tree.BlockStatement):
-        return '{\n%s\n%s}' % ("\n".join(unparse(stmt, indent=indent+1) for stmt in node.statements), indent_str)
+        label_str = _get_label_str(node.label, indent_str)
+        block_str = _get_body_str(node.statements, indent).strip()
+        static_str = "static " if hasattr(node, 'static') and node.static else ""
+        return label_str + indent_str + static_str + block_str
     elif isinstance(node, tree.StatementExpression):
         return indent_str + unparse(node.expression) + ";"
     
     elif isinstance(node, tree.CatchClause):
-        block_stmts = [unparse(stmt, indent=indent+1) for stmt in node.block]
-        return "catch (%s) {\n%s\n%s}" % (unparse(node.parameter), "\n".join(block_stmts), indent_str)
+        block_str = _get_body_str(node.block, indent)
+        return "catch (%s)%s" % (unparse(node.parameter), block_str)
     elif isinstance(node, tree.CatchClauseParameter):
+        modifier_str = _get_modifier_str(node.modifiers, trailing_space=True)
         type_collation = " | ".join(node.types)
-        return "%s %s" % (type_collation, node.name)
+        return "%s%s %s" % (modifier_str, type_collation, node.name)
 
     elif isinstance(node, tree.SwitchStatementCase):
         indiv_cases = [unparse(case) if isinstance(case, Node) else case for case in node.case]
@@ -247,7 +336,12 @@ def unparse(node, indent=0, indent_size=4):
     elif isinstance(node, tree.Assignment):
         return "%s %s %s" % (unparse(node.expressionl), node.type, unparse(node.value))
     elif isinstance(node, tree.TernaryExpression):
-        return "%s ? %s : %s" % (unparse(node.condition), unparse(node.if_true), unparse(node.if_false))
+        base_str = "%s ? %s : %s" % (unparse(node.condition), unparse(node.if_true), unparse(node.if_false))
+        if hasattr(node, 'selectors'):
+            selector_str = _get_selector_str(node.selectors)
+            return "(%s)%s" % (base_str, selector_str)
+        else:
+            return base_str
     elif isinstance(node, tree.BinaryOperation):
         if hasattr(node, 'prefix_operators'): # prefixes in binary operations aren't documented but exist
             prefix_str = _get_prefix_str(node.prefix_operators)
@@ -276,10 +370,7 @@ def unparse(node, indent=0, indent_size=4):
     elif isinstance(node, tree.This):
         prefix_str = _get_prefix_str(node.prefix_operators)
         postfix_str = _get_postfix_str(node.postfix_operators)
-        if node.qualifier is None:
-            qualifier_str = ""
-        else:
-            qualifier_str = node.qualifier + "."
+        qualifier_str = _get_qualifier_str(node.qualifier)
         selector_str = _get_selector_str(node.selectors)
         return prefix_str + qualifier_str + "this" + selector_str + postfix_str
     elif isinstance(node, tree.MemberReference):
@@ -289,15 +380,22 @@ def unparse(node, indent=0, indent_size=4):
             core_name = node.member
         prefix_str = _get_prefix_str(node.prefix_operators)
         postfix_str = _get_postfix_str(node.postfix_operators)
-        selector_str = "" if node.selectors is None else "".join(unparse(e) for e in node.selectors) # array result selectors
+        selector_str = _get_selector_str(node.selectors)
         return prefix_str + core_name + postfix_str + selector_str
     elif isinstance(node, tree.ExplicitConstructorInvocation):
         return "this(%s)" % (", ".join(unparse(e) for e in node.arguments))
     elif isinstance(node, tree.SuperConstructorInvocation):
-        return "super(%s)" % (", ".join(unparse(e) for e in node.arguments))
+        qualifier_str = _get_qualifier_str(node.qualifier)
+        return "%ssuper(%s)" % (qualifier_str, ", ".join(unparse(e) for e in node.arguments))
     elif isinstance(node, tree.MethodInvocation):
         prefix_str = _get_prefix_str(node.prefix_operators)
-        mname = node.member if node.qualifier is None or len(node.qualifier) == 0 else node.qualifier + "." + node.member
+        qualifier_str = _get_qualifier_str(node.qualifier)
+        if node.type_arguments is not None and len(node.type_arguments) > 0:
+            assert node.qualifier is not None and len(node.qualifier) > 0
+            typep_str = "<%s>" % ", ".join(unparse(t) for t in node.type_arguments) # generic method handling
+        else:
+            typep_str = ""
+        mname = qualifier_str + typep_str + node.member
         args = ", ".join(unparse(arg) for arg in node.arguments)
         selector_str = _get_selector_str(node.selectors)
         return prefix_str + mname + "(" + args + ")" + selector_str
@@ -310,42 +408,43 @@ def unparse(node, indent=0, indent_size=4):
         return "[%s]" % unparse(node.index)
     elif isinstance(node, tree.ClassReference):
         prefix_str = _get_prefix_str(node.prefix_operators)
+        qualifier_str = _get_qualifier_str(node.qualifier)
         selector_str = _get_selector_str(node.selectors)
-        return "%s%s.class%s" % (prefix_str, unparse(node.type), selector_str)
+        type_str = "void" if isinstance(node, tree.VoidClassReference) else unparse(node.type)
+        return "%s%s%s.class%s" % (prefix_str, qualifier_str, type_str, selector_str)
 
     elif isinstance(node, tree.ArrayCreator):
         dim_str = ''.join([f'[{unparse(e)}]' if e is not None else '[]' for e in node.dimensions])
         init_str = unparse(node.initializer) if node.initializer is not None else ''
         return f'new {unparse(node.type)}{dim_str}{init_str}'
     elif isinstance(node, tree.ClassCreator):
+        if hasattr(node, 'prefix_operators'):
+            prefix_str = _get_prefix_str(node.prefix_operators)
+        else:
+            prefix_str = ""
         args = ", ".join(unparse(arg) for arg in node.arguments)
-        assert node.selectors is None or len(node.selectors) <= 1 # unsure what is happening here
-        if node.selectors is None or len(node.selectors) == 0:
-            selector_str = ""
-        else:
-            selector_str = "." + unparse(node.selectors[0])
-        if node.body is not None:
-            body_str = '\n'.join(unparse(e, indent=indent+1) for e in node.body)
-            body_str = ' {\n' + body_str + '\n' + indent_str + '}'
-        else:
-            body_str = ""
-        return "new %s(%s)%s%s" % (unparse(node.type), args, selector_str, body_str)
+        selector_str = _get_selector_str(node.selectors)
+        body_str = _get_body_str(node.body, indent)
+        return "%snew %s(%s)%s%s" % (prefix_str, unparse(node.type), args, selector_str, body_str)
     elif isinstance(node, tree.InnerClassCreator):
         args = ", ".join(unparse(arg) for arg in node.arguments)
         return "new %s(%s)" % (unparse(node.type), args)
     
     elif isinstance(node, tree.EnumBody):
-        constants_str = ",\n".join(indent_str + unparse(c) for c in node.constants)
+        constants_str = ",\n".join(indent_str + unparse(c, indent=indent) for c in node.constants)
         declarations_str = "\n".join(unparse(d, indent=indent) for d in node.declarations)
         return constants_str + "\n" + declarations_str
     elif isinstance(node, tree.EnumConstantDeclaration):
-        assert node.body is None, 'I dunno what this looks like :('
         if node.arguments is None or len(node.arguments) == 0:
             arg_str = ""
         else:
             arg_str = "(%s)" % ", ".join(unparse(a) for a in node.arguments)
-
-        return node.name+arg_str
+        annotation_str = _get_annotation_str(node.annotations, indent_str)
+        body_str = _get_body_str(node.body, indent)
+        return annotation_str+node.name+arg_str+body_str
+    elif isinstance(node, tree.AnnotationMethod):
+        default_str = " default %s" % unparse(node.default) if node.default is not None else ""
+        return "%s%s %s()%s;" % (indent_str, unparse(node.return_type), node.name, default_str)
     
     ## Weird fellows
     elif isinstance(node, tree.Statement):
