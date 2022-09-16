@@ -280,15 +280,20 @@ def unparse(node, indent=0):
     elif isinstance(node, tree.TryStatement):
         preamble = _get_label_str(node.label, indent_str) + indent_str
         block_str = _get_body_str(node.block, indent)
+        if node.resources is not None:
+            assert len(node.resources) == 1, "I don't know what more than one resource looks like"
+            preamble += "try (%s)" % unparse(node.resources[0])
+        else:
+            preamble += "try"
         if node.catches is not None:
             catch_clauses = [unparse(catch, indent=indent) for catch in node.catches]
         else:
             catch_clauses = []
         if node.finally_block is None:
-            return "%stry%s %s" % (preamble, block_str, " ".join(catch_clauses))
+            return "%s%s %s" % (preamble, block_str, " ".join(catch_clauses))
         else:
             finally_block_str = _get_body_str(node.finally_block, indent)
-            return "%stry%s %s finally {%s}" % (preamble, block_str, " ".join(catch_clauses), finally_block_str)
+            return "%s%s %s finally {%s}" % (preamble, block_str, " ".join(catch_clauses), finally_block_str)
     elif isinstance(node, tree.SwitchStatement):
         label_str = _get_label_str(node.label, indent_str)
         expression_str = unparse(node.expression)
@@ -302,6 +307,12 @@ def unparse(node, indent=0):
     elif isinstance(node, tree.StatementExpression):
         return indent_str + unparse(node.expression) + ";"
     
+    elif isinstance(node, tree.TryResource):
+        modifier_str = _get_modifier_str(node.modifiers, trailing_space=True)
+        type_str = unparse(node.type)
+        name_str = node.name
+        value_str = " = %s" % unparse(node.value) if node.value is not None else ""
+        return modifier_str + type_str + " " + name_str + value_str
     elif isinstance(node, tree.CatchClause):
         block_str = _get_body_str(node.block, indent)
         return "catch (%s)%s" % (unparse(node.parameter), block_str)
@@ -341,18 +352,25 @@ def unparse(node, indent=0):
         return "%s : %s" % (var_dec_without_semicolon, unparse(node.iterable))
 
     elif isinstance(node, tree.Assignment):
-        return "%s %s %s" % (unparse(node.expressionl), node.type, unparse(node.value))
+        if hasattr(node, 'selectors'):
+            selectors_str = _get_selector_str(node.selectors)
+            template_str = '(%s %s %s)' + selectors_str
+        else:
+            template_str = '%s %s %s'
+        return template_str % (unparse(node.expressionl), node.type, unparse(node.value))
     elif isinstance(node, tree.TernaryExpression):
         base_str = "%s ? %s : %s" % (unparse(node.condition), unparse(node.if_true), unparse(node.if_false))
-        if hasattr(node, 'selectors'):
+        if hasattr(node, 'selectors') or hasattr(node, 'prefix_operators'):
+            prefix_str = _get_prefix_str(node.prefix_operators)
             selector_str = _get_selector_str(node.selectors)
-            return "(%s)%s" % (base_str, selector_str)
+            return "%s(%s)%s" % (prefix_str, base_str, selector_str)
         else:
             return base_str
     elif isinstance(node, tree.BinaryOperation):
-        if hasattr(node, 'prefix_operators'): # prefixes in binary operations aren't documented but exist
+        if hasattr(node, 'prefix_operators') or hasattr(node, 'selectors'): # prefixes in binary operations aren't documented but exist
             prefix_str = _get_prefix_str(node.prefix_operators)
-            return "%s(%s %s %s)" % (prefix_str, unparse(node.operandl), node.operator, unparse(node.operandr))
+            selector_str = _get_selector_str(node.selectors)
+            return "%s(%s %s %s)%s" % (prefix_str, unparse(node.operandl), node.operator, unparse(node.operandr), selector_str)
         else:
             return "%s %s %s" % (unparse(node.operandl), node.operator, unparse(node.operandr))
     elif isinstance(node, tree.Cast):
@@ -399,7 +417,7 @@ def unparse(node, indent=0):
         postfix_str = _get_postfix_str(node.postfix_operators)
         qualifier_str = _get_qualifier_str(node.qualifier)
         if node.type_arguments is not None and len(node.type_arguments) > 0:
-            assert node.qualifier is not None and len(node.qualifier) > 0
+            # assert node.qualifier is not None and len(node.qualifier) > 0
             typep_str = "<%s>" % ", ".join(unparse(t) for t in node.type_arguments) # generic method handling
         else:
             typep_str = ""
@@ -422,9 +440,13 @@ def unparse(node, indent=0):
         return "%s%s%s.class%s" % (prefix_str, qualifier_str, type_str, selector_str)
 
     elif isinstance(node, tree.ArrayCreator):
+        selector_str = _get_selector_str(node.selectors)
         dim_str = ''.join([f'[{unparse(e)}]' if e is not None else '[]' for e in node.dimensions])
         init_str = unparse(node.initializer) if node.initializer is not None else ''
-        return f'new {unparse(node.type)}{dim_str}{init_str}'
+        if len(selector_str) == 0:
+            return f'new {unparse(node.type)}{dim_str}{init_str}'
+        else:
+            return f'(new {unparse(node.type)}{dim_str}{init_str}){selector_str}'
     elif isinstance(node, tree.ClassCreator):
         if hasattr(node, 'prefix_operators'):
             prefix_str = _get_prefix_str(node.prefix_operators)
@@ -452,8 +474,10 @@ def unparse(node, indent=0):
         body_str = _get_body_str(node.body, indent)
         return annotation_str+node.name+arg_str+body_str
     elif isinstance(node, tree.AnnotationMethod):
+        annotation_str = _get_annotation_str(node.annotations, indent_str)
+        modifier_str = _get_modifier_str(node.modifiers, trailing_space=True)
         default_str = " default %s" % unparse(node.default) if node.default is not None else ""
-        return "%s%s %s()%s;" % (indent_str, unparse(node.return_type), node.name, default_str)
+        return "%s%s%s%s %s()%s;" % (annotation_str, indent_str, modifier_str, unparse(node.return_type), node.name, default_str)
     
     ## Weird fellows
     elif isinstance(node, tree.Statement):
@@ -462,7 +486,7 @@ def unparse(node, indent=0):
     elif isinstance(node, list):
         # seems to be a static block? I'm unsure what this is. (found in SegmentedTimelineTests.java of Chart)
         statement_str = "\n".join(unparse(stmt, indent=indent+1) for stmt in node)
-        return "%sstatic {\n%s\n%s}" % (indent_str, statement_str, indent_str)
+        return "%s {\n%s\n%s}" % (indent_str, statement_str, indent_str)
     else:
         raise NotImplementedError("Unparser for %s is not implemented at location %s" % (type(node), node._position))
 
