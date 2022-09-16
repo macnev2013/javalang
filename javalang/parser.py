@@ -1897,7 +1897,8 @@ class Parser(object):
             primary.prefix_operators = prefix_operators
         if getattr(primary, "selectors", None) is None:
             primary.selectors = list()
-        primary.postfix_operators = list()
+        if (not hasattr(primary, 'postfix_operators')) or (primary.postfix_operators is None):
+            primary.postfix_operators = list()
 
         token = self.tokens.look()
         while token.value in '[.':

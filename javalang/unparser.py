@@ -244,13 +244,16 @@ def unparse(node, indent=0):
         else:
             return "%s %s" % (preamble, then_statement)
     elif isinstance(node, tree.WhileStatement):
-        condition = unparse(node.condition)
+        label_str = _get_label_str(node.label, indent_str)
+        preamble = label_str + indent_str + "while (%s) " % unparse(node.condition)
         statement = unparse(node.body, indent=indent)
-        return "%swhile (%s) %s" % (indent_str, condition, statement)
+        return "%s %s" % (preamble, statement)
     elif isinstance(node, tree.DoStatement):
+        label_str = _get_label_str(node.label, indent_str)
+        preamble = label_str + indent_str + "do "
         condition = unparse(node.condition)
         statement = unparse(node.body, indent=indent)
-        return "%sdo %s while (%s);" % (indent_str, statement, condition)
+        return "%s%s while (%s);" % (preamble, statement, condition)
     elif isinstance(node, tree.ForStatement):
         label_str = _get_label_str(node.label, indent_str)
         preamble = label_str + indent_str
@@ -258,7 +261,8 @@ def unparse(node, indent=0):
         statement = unparse(node.body, indent=indent)
         return "%sfor (%s) %s" % (preamble, forcontrol, statement)
     elif isinstance(node, tree.AssertStatement):
-        return indent_str + "assert(%s);" % unparse(node.condition)
+        value_str = " : " + unparse(node.value) if node.value is not None else ""
+        return indent_str + "assert(%s)%s;" % (unparse(node.condition), value_str)
     elif isinstance(node, tree.BreakStatement):
         goto_str = " %s" % node.goto if node.goto is not None else ""
         return indent_str + "break%s;" % goto_str
@@ -270,23 +274,26 @@ def unparse(node, indent=0):
     elif isinstance(node, tree.ThrowStatement):
         return indent_str + "throw %s;" % unparse(node.expression)
     elif isinstance(node, tree.SynchronizedStatement):
+        label_str = _get_label_str(node.label, indent_str)
         body_str = _get_body_str(node.block, indent)
-        return indent_str + "synchronized (%s) %s" % (unparse(node.lock), body_str)
+        return label_str + indent_str + "synchronized (%s) %s" % (unparse(node.lock), body_str)
     elif isinstance(node, tree.TryStatement):
+        preamble = _get_label_str(node.label, indent_str) + indent_str
         block_str = _get_body_str(node.block, indent)
         if node.catches is not None:
             catch_clauses = [unparse(catch, indent=indent) for catch in node.catches]
         else:
             catch_clauses = []
         if node.finally_block is None:
-            return "%stry%s %s" % (indent_str, block_str, " ".join(catch_clauses))
+            return "%stry%s %s" % (preamble, block_str, " ".join(catch_clauses))
         else:
             finally_block_str = _get_body_str(node.finally_block, indent)
-            return "%stry%s %s finally {%s}" % (indent_str, block_str, " ".join(catch_clauses), finally_block_str)
+            return "%stry%s %s finally {%s}" % (preamble, block_str, " ".join(catch_clauses), finally_block_str)
     elif isinstance(node, tree.SwitchStatement):
+        label_str = _get_label_str(node.label, indent_str)
         expression_str = unparse(node.expression)
         block_str = _get_body_str(node.cases, indent)
-        return "%sswitch (%s)%s" % (indent_str, expression_str, block_str)
+        return "%s%sswitch (%s)%s" % (label_str, indent_str, expression_str, block_str)
     elif isinstance(node, tree.BlockStatement):
         label_str = _get_label_str(node.label, indent_str)
         block_str = _get_body_str(node.statements, indent).strip()
@@ -389,6 +396,7 @@ def unparse(node, indent=0):
         return "%ssuper(%s)" % (qualifier_str, ", ".join(unparse(e) for e in node.arguments))
     elif isinstance(node, tree.MethodInvocation):
         prefix_str = _get_prefix_str(node.prefix_operators)
+        postfix_str = _get_postfix_str(node.postfix_operators)
         qualifier_str = _get_qualifier_str(node.qualifier)
         if node.type_arguments is not None and len(node.type_arguments) > 0:
             assert node.qualifier is not None and len(node.qualifier) > 0
@@ -398,7 +406,7 @@ def unparse(node, indent=0):
         mname = qualifier_str + typep_str + node.member
         args = ", ".join(unparse(arg) for arg in node.arguments)
         selector_str = _get_selector_str(node.selectors)
-        return prefix_str + mname + "(" + args + ")" + selector_str
+        return prefix_str + mname + "(" + args + ")" + selector_str + postfix_str
     elif isinstance(node, tree.SuperMethodInvocation):
         prefix_str = _get_prefix_str(node.prefix_operators)
         args = ", ".join(unparse(arg) for arg in node.arguments)
@@ -427,8 +435,9 @@ def unparse(node, indent=0):
         body_str = _get_body_str(node.body, indent)
         return "%snew %s(%s)%s%s" % (prefix_str, unparse(node.type), args, selector_str, body_str)
     elif isinstance(node, tree.InnerClassCreator):
+        qualifier_str = _get_qualifier_str(node.qualifier)
         args = ", ".join(unparse(arg) for arg in node.arguments)
-        return "new %s(%s)" % (unparse(node.type), args)
+        return "%snew %s(%s)" % (qualifier_str, unparse(node.type), args)
     
     elif isinstance(node, tree.EnumBody):
         constants_str = ",\n".join(indent_str + unparse(c, indent=indent) for c in node.constants)
