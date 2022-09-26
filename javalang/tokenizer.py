@@ -1,3 +1,4 @@
+from glob import escape
 import re
 import unicodedata
 from collections import namedtuple
@@ -490,7 +491,9 @@ class JavaTokenizer(object):
         self.reset()
 
         # Convert unicode escapes
-        self.pre_tokenize()
+        # sm: This doesn't seem to help my particular use cases.
+        # self.pre_tokenize()
+        self.length = len(self.data)
 
         while self.i < self.length:
             token_type = None
