@@ -67,7 +67,7 @@ def _get_body_str(elements, indent):
         body_statements = "\n".join(unparse(e, indent=indent+1) for e in elements)
         return " {\n" + body_statements + "\n" + indent_str + "}"
     else:
-        raise ValueError(f"Invalid body type {type(e)}")
+        raise ValueError(f"Invalid body type {type(elements)}")
 
 def _get_qualifier_str(qualifier):
     if qualifier is None or len(qualifier) == 0:
@@ -183,7 +183,7 @@ def unparse(node, indent=0):
         throws = " throws " + ", ".join(t for t in node.throws) if node.throws is not None else ""
         body_str = _get_body_str(node.body, indent)
         body_str = body_str if body_str != "" else " { ; }"
-        return "%s%s%s %s %s(%s)%s%s" % (annotation_str, modifier_str, typep_str, return_type, method_name, params, throws, body_str)
+        return "%s%s%s%s %s(%s)%s%s" % (annotation_str, modifier_str, typep_str, return_type, method_name, params, throws, body_str)
     elif isinstance(node, tree.FieldDeclaration):
         annotation_str = _get_annotation_str(node.annotations, indent_str)
         modifier_str = annotation_str + indent_str + _get_modifier_str(node.modifiers)
