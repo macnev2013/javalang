@@ -1962,13 +1962,13 @@ class Parser(object):
             primary.postfix_operators = list()
 
         token = self.tokens.look()
-        while token.value in '[.':
+        while token.value is not None and token.value in '[.':
             selector = self.parse_selector()
             primary.selectors.append(selector)
 
             token = self.tokens.look()
 
-        while token.value in Operator.POSTFIX:
+        while token.value is not None and token.value in Operator.POSTFIX:
             primary.postfix_operators.append(self.tokens.next().value)
             token = self.tokens.look()
 
