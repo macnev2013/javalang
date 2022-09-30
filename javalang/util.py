@@ -111,7 +111,7 @@ class LookAheadListIterator(object):
             self.value = self.list[self.marker]
             self.marker += 1
         except IndexError:
-            raise StopIteration()
+            return self.default
 
         return self.value
 
