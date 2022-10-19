@@ -237,9 +237,9 @@ def unparse(node, indent=0):
 
     elif isinstance(node, tree.IfStatement):
         label_str = _get_label_str(node.label, indent_str)
-        preamble = label_str + indent_str + "if (%s) " % unparse(node.condition)
-        then_statement = unparse(node.then_statement, indent=indent)
-        else_statement = unparse(node.else_statement, indent=indent) if node.else_statement is not None else ""
+        preamble = label_str + indent_str + "if (%s)" % unparse(node.condition)
+        then_statement = unparse(node.then_statement, indent=indent).strip()
+        else_statement = unparse(node.else_statement, indent=indent).strip() if node.else_statement is not None else ""
         if len(else_statement) > 0:
             return "%s %s else %s" % (preamble, then_statement, else_statement)
         else:
@@ -259,7 +259,7 @@ def unparse(node, indent=0):
         label_str = _get_label_str(node.label, indent_str)
         preamble = label_str + indent_str
         forcontrol = unparse(node.control)
-        statement = unparse(node.body, indent=indent)
+        statement = unparse(node.body, indent=indent).strip()
         return "%sfor (%s) %s" % (preamble, forcontrol, statement)
     elif isinstance(node, tree.AssertStatement):
         value_str = " : " + unparse(node.value) if node.value is not None else ""
