@@ -36,12 +36,13 @@ def _get_modifier_str(modifiers, trailing_space=False):
     else:
         return ' '.join(modifiers) + (' ' if trailing_space and len(modifiers) > 0 else '')
 
-def _get_type_arguments_str(type_arguments, leading_space=False):
+def _get_type_arguments_str(type_arguments, leading_space=False, trailing_space=False):
     if type_arguments is None or len(type_arguments) == 0:
         return ''
     else:
         leading_str = ' ' if leading_space else ''
-        return leading_str + '<' + ', '.join(unparse(e) for e in type_arguments) + '>'
+        trailing_str = ' ' if trailing_space else ''
+        return leading_str + '<' + ', '.join(unparse(e) for e in type_arguments) + '>' + trailing_str
 
 def _get_annotation_str(annotations, indent_str):
     if annotations is None or len(annotations) == 0:
@@ -175,8 +176,8 @@ def unparse(node, indent=0):
 
     elif isinstance(node, tree.MethodDeclaration):
         annotation_str = _get_annotation_str(node.annotations, indent_str)
-        modifier_str = indent_str + _get_modifier_str(node.modifiers)
-        typep_str = _get_type_arguments_str(node.type_parameters, leading_space=True)
+        modifier_str = indent_str + _get_modifier_str(node.modifiers, trailing_space=True)
+        typep_str = _get_type_arguments_str(node.type_parameters, trailing_space=True)
         return_type = unparse(node.return_type) if node.return_type is not None else "void"
         method_name = node.name
         params = ", ".join(unparse(p) for p in node.parameters)
@@ -186,8 +187,8 @@ def unparse(node, indent=0):
         return "%s%s%s%s %s(%s)%s%s" % (annotation_str, modifier_str, typep_str, return_type, method_name, params, throws, body_str)
     elif isinstance(node, tree.FieldDeclaration):
         annotation_str = _get_annotation_str(node.annotations, indent_str)
-        modifier_str = annotation_str + indent_str + _get_modifier_str(node.modifiers)
-        all_dec_str = modifier_str + " " + unparse(node.type) + " "
+        modifier_str = annotation_str + indent_str + _get_modifier_str(node.modifiers, trailing_space=True)
+        all_dec_str = modifier_str + unparse(node.type) + " "
         for var in node.declarators:
             dec_str = unparse(var)
             all_dec_str += dec_str + ', '
