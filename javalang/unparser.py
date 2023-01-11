@@ -387,6 +387,14 @@ def unparse(node, indent=0):
             return "%s((%s) %s)%s" % (prefix_str, unparse(node.type), unparse(node.expression), selector_str)
         else:
             return "(%s) %s" % (unparse(node.type), unparse(node.expression))
+    elif isinstance(node, tree.LambdaExpression):
+        param_str = "(" + ", ".join(unparse(param) for param in node.parameters) + ")"
+        if isinstance(node.body, tree.Node):
+            body_str = unparse(node.body)
+        else:
+            assert type(node.body) == list
+            body_str = "{" + "; ".join(unparse(stmt) for stmt in node.body) + "}"
+        return "%s -> %s" % (param_str, body_str)
 
     elif isinstance(node, tree.Literal):
         prefix_str = _get_prefix_str(node.prefix_operators)
