@@ -282,8 +282,8 @@ def unparse(node, indent=0):
         preamble = _get_label_str(node.label, indent_str) + indent_str
         block_str = _get_body_str(node.block, indent)
         if node.resources is not None:
-            assert len(node.resources) == 1, "I don't know what more than one resource looks like"
-            preamble += "try (%s)" % unparse(node.resources[0])
+            # assert len(node.resources) == 1, "I don't know what more than one resource looks like"
+            preamble += "try (%s)" % '; '.join([unparse(e) for e in node.resources])
         else:
             preamble += "try"
         if node.catches is not None:
