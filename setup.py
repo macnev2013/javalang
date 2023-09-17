@@ -2,9 +2,9 @@ from setuptools import setup
 
 
 setup(
-    name = "javalang",
+    name = "javalang-ext",
     packages = ["javalang"],
-    version = "0.14.1",
+    version = "0.14.3",
     author = "Nevil Macwan",
     author_email = "macnev2013@gmail.com",
     url = "http://github.com/macnev2013/javalang",
