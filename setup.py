@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name = "javalang-ext",
-    packages = ["javalang-ext"],
+    packages = ["javalang_ext"],
     version = "0.15.0",
     author = "Nevil Macwan",
     author_email = "macnev2013@gmail.com",
