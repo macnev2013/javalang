@@ -1,8 +1,5 @@
-import six
-
-from .ast import Node
-from . import util
 from . import tree
+from .ast import Node
 
 INDENT_SIZE = 4
 

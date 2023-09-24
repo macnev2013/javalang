@@ -3,11 +3,11 @@ from setuptools import setup
 
 setup(
     name = "javalang-ext",
-    packages = ["javalang"],
-    version = "0.14.3",
+    packages = ["javalang-ext"],
+    version = "0.15.0",
     author = "Nevil Macwan",
     author_email = "macnev2013@gmail.com",
-    url = "http://github.com/macnev2013/javalang",
+    url = "http://github.com/macnev2013/javalang-ext",
     description = "Pure Python Java parser and tools",
     classifiers = [
         "Programming Language :: Python",
@@ -19,13 +19,15 @@ setup(
         ],
     long_description = """\
 ========
-javalang
+javalang-ext
 ========
 
-javalang is a pure Python library for working with Java source
-code. javalang provies a lexer and parser targeting Java 8. The
-implementation is based on the Java language spec available at
-http://docs.oracle.com/javase/specs/jls/se8/html/.
+
+`javalang-ext` builds on [javalang](https://github.com/c2nes/javalang),
+which is a pure Python library for working with Java source code,
+providing a lexer and parser targeting Java 8.
+The implementation is based on the Java language spec available at http://docs.oracle.com/javase/specs/jls/se8/html/.
+The `javalang-ext` library builds upon javalang and adds quality-of-life updates to make use easier.
 
 """,
     zip_safe = False,

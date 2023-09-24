@@ -1,12 +1,12 @@
 import six
 
-from .ast import Node
-from . import util
 from . import tree
+from . import util
+from .ast import Node
 from .tokenizer import (
-    EndOfInput, Keyword, Modifier, BasicType, Identifier,
-    Annotation, Literal, Operator, JavaToken, Position, tokenize
-    )
+    EndOfInput, Modifier, BasicType, Identifier,
+    Annotation, Literal, Operator, Position, tokenize
+)
 
 ENABLE_DEBUG_SUPPORT = False
 

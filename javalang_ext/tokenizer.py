@@ -1,4 +1,3 @@
-from glob import escape
 import re
 import unicodedata
 from collections import namedtuple
